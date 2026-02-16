@@ -1,0 +1,18 @@
+# NeMo Guardrails configuration for Med Spa AI Concierge
+models:
+  - type: main
+    engine: bedrock
+    model: anthropic.claude-3-5-haiku-20241022-v1:0
+
+rails:
+  input:
+    flows:
+      - check medical advice request
+      - check emergency
+      - check prompt injection
+
+  output:
+    flows:
+      - check no diagnosis
+      - add liability disclaimer
+      - check ai disclosure

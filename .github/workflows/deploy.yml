@@ -1,0 +1,22 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-web:
+    runs-on: ubuntu-latest
+    if: false # Enable when ready to deploy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Vercel
+        run: echo "TODO: Configure Vercel deployment"
+
+  deploy-api:
+    runs-on: ubuntu-latest
+    if: false # Enable when ready to deploy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to AWS ECS
+        run: echo "TODO: Configure ECS deployment"

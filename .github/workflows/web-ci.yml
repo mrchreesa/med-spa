@@ -1,0 +1,44 @@
+name: Web CI
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/web/**", "packages/shared/**"]
+  pull_request:
+    branches: [main]
+    paths: ["apps/web/**", "packages/shared/**"]
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check shared
+        run: pnpm --filter @med-spa/shared type-check
+
+      - name: Lint
+        run: pnpm --filter @med-spa/web lint
+
+      - name: Type check
+        run: pnpm --filter @med-spa/web type-check
+
+      - name: Build
+        run: pnpm --filter @med-spa/web build
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_placeholder

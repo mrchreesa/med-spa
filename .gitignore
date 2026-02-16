@@ -1,0 +1,168 @@
+# ------------------------------------------------------------
+# General / OS
+# ------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ------------------------------------------------------------
+# Editors / IDEs
+# ------------------------------------------------------------
+.idea/
+.vscode/
+.fleet/
+*.iml
+*.suo
+*.user
+*.userossc
+*.sln.docstates
+*.swp
+*.swo
+*~
+.history/
+
+# ------------------------------------------------------------
+# Logs / Runtime dumps
+# ------------------------------------------------------------
+*.log
+*.out
+*.err
+*.pid
+*.pid.lock
+*.seed
+*.stackdump
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ------------------------------------------------------------
+# Environment / Local secrets
+# ------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.crt
+*.cer
+secrets/
+
+# ------------------------------------------------------------
+# Dependencies / Package managers
+# ------------------------------------------------------------
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+
+# ------------------------------------------------------------
+# Monorepo / Task runners
+# ------------------------------------------------------------
+.turbo/
+.nx/
+
+# ------------------------------------------------------------
+# JavaScript / TypeScript
+# ------------------------------------------------------------
+.next/
+out/
+.nuxt/
+.svelte-kit/
+storybook-static/
+dist/
+build/
+.parcel-cache/
+.eslintcache
+*.tsbuildinfo
+
+# ------------------------------------------------------------
+# Test / Coverage artifacts
+# ------------------------------------------------------------
+coverage/
+*.lcov
+htmlcov/
+.coverage
+.coverage.*
+.nyc_output/
+test-results/
+playwright-report/
+.pytest_cache/
+.hypothesis/
+
+# ------------------------------------------------------------
+# Python
+# ------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-wheel-metadata/
+*.egg-info/
+*.egg
+.venv/
+venv/
+ENV/
+env/
+.python-version
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.tox/
+.nox/
+.ipynb_checkpoints/
+
+# ------------------------------------------------------------
+# Local databases / generated data
+# ------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.db
+
+# ------------------------------------------------------------
+# Build / cache temp files
+# ------------------------------------------------------------
+.cache/
+.tmp/
+tmp/
+temp/
+
+# ------------------------------------------------------------
+# Docker
+# ------------------------------------------------------------
+docker-compose.override.yml
+
+# ------------------------------------------------------------
+# Infrastructure
+# ------------------------------------------------------------
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+
+# ------------------------------------------------------------
+# Cursor / local project tooling
+# ------------------------------------------------------------
+.cursor/
+.claude 
+.firecrawl
+.playwright-mcp 
+
+# ------------------------------------------------------------
+# Project-specific docs / notes
+# ------------------------------------------------------------
+docs/
+CLAUDE.md
+/Revised Project Proposal_ Med Spa AI Agent.docx
