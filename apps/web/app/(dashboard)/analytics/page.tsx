@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LeadsByStatusChart } from "@/components/charts/leads-by-status-chart";
 import { LeadsBySourceChart } from "@/components/charts/leads-by-source-chart";
 import { EscalationRateGauge } from "@/components/charts/escalation-rate-gauge";
+import { LeadsByIntentChart } from "@/components/charts/leads-by-intent-chart";
 import { BarChart3 } from "lucide-react";
 
 interface DashboardMetrics {
@@ -21,6 +22,7 @@ interface DashboardMetrics {
   leads_today: number;
   leads_by_status: Record<string, number>;
   leads_by_source: Record<string, number>;
+  leads_by_intent: Record<string, number>;
   total_conversations: number;
   pending_escalations: number;
   total_escalations: number;
@@ -119,6 +121,14 @@ export default function AnalyticsPage() {
               <LeadsBySourceChart data={metrics.leads_by_source} />
             </Card>
           </div>
+
+          {/* What are people asking about? */}
+          <Card>
+            <CardHeader>
+              <CardTitle>What People Are Asking About</CardTitle>
+            </CardHeader>
+            <LeadsByIntentChart data={metrics.leads_by_intent} />
+          </Card>
 
           {/* Escalation Rate */}
           <Card>

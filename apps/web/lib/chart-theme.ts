@@ -22,6 +22,15 @@ export const sourceChartColors: Record<string, string> = {
   sms: "#7B95A8",
 };
 
+export const intentChartColors: Record<string, string> = {
+  appointment: "#7BA68B",
+  pricing: "#C9A96E",
+  treatment_info: "#8B7355",
+  complaint: "#C45B4A",
+  general: "#7B95A8",
+  emergency: "#D4A853",
+};
+
 export const chartPalette = [
   "#8B7355",
   "#C9A96E",

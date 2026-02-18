@@ -1,4 +1,3 @@
-import json
 import logging
 import time
 
@@ -78,7 +77,11 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
 
         # In development without Clerk keys, accept any token but log a warning
         if not settings.clerk_jwks_url:
-            logger.warning("Clerk JWKS URL not configured — skipping JWT verification")
+            logger.warning(
+                "Clerk JWKS URL not configured — skipping JWT verification for %s %s",
+                request.method,
+                request.url.path,
+            )
             request.state.user_id = ""
             request.state.org_id = ""
             request.state.token = token
@@ -106,7 +109,7 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
         try:
             unverified_header = jwt.get_unverified_header(token)
         except JWTError as e:
-            raise ValueError(f"Invalid token format: {e}")
+            raise ValueError(f"Invalid token format: {e}") from e
 
         kid = unverified_header.get("kid")
         if not kid:
@@ -139,8 +142,15 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
                 algorithms=["RS256"],
                 options={"verify_aud": False},
             )
+
+            # Validate azp (authorized party / origin) if configured
+            if settings.clerk_allowed_origins:
+                azp = claims.get("azp", "")
+                if azp not in settings.clerk_allowed_origins:
+                    raise ValueError("Unauthorized origin")
+
             return claims
-        except jwt.ExpiredSignatureError:
-            raise ValueError("Token has expired")
+        except jwt.ExpiredSignatureError as e:
+            raise ValueError("Token has expired") from e
         except JWTError as e:
-            raise ValueError(f"Token verification failed: {e}")
+            raise ValueError(f"Token verification failed: {e}") from e

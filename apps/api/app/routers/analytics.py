@@ -58,6 +58,18 @@ async def get_dashboard_metrics(
     )
     leads_by_source = {str(row[0].value): row[1] for row in leads_by_source_result.all()}
 
+    # Leads by intent
+    leads_by_intent_result = await db.execute(
+        select(Lead.intent, func.count(Lead.id))
+        .where(
+            Lead.tenant_id == tenant_id,
+            Lead.created_at >= since,
+            Lead.intent.isnot(None),
+        )
+        .group_by(Lead.intent)
+    )
+    leads_by_intent = {str(row[0].value): row[1] for row in leads_by_intent_result.all()}
+
     # Active conversations (any in period)
     conversations_result = await db.execute(
         select(func.count(Conversation.id)).where(
@@ -104,6 +116,7 @@ async def get_dashboard_metrics(
         "leads_today": leads_today,
         "leads_by_status": leads_by_status,
         "leads_by_source": leads_by_source,
+        "leads_by_intent": leads_by_intent,
         "total_conversations": total_conversations,
         "pending_escalations": pending_escalations,
         "total_escalations": total_escalations,
