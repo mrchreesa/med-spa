@@ -3,6 +3,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { api } from "@/lib/api";
+import { PageHeader } from "@/components/ui/page-header";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input, Textarea, Select } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { ToggleSwitch } from "@/components/ui/toggle-switch";
+import { PageLoader } from "@/components/ui/loading-spinner";
+import {
+  Building2,
+  Clock,
+  MessageCircle,
+  Bell,
+  BookOpen,
+  Save,
+  Check,
+} from "lucide-react";
 
 interface TenantSettings {
   name: string;
@@ -21,13 +36,13 @@ interface TenantSettings {
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
 const dayLabels: Record<string, string> = {
-  monday: "Mon",
-  tuesday: "Tue",
-  wednesday: "Wed",
-  thursday: "Thu",
-  friday: "Fri",
-  saturday: "Sat",
-  sunday: "Sun",
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
+  saturday: "Saturday",
+  sunday: "Sunday",
 };
 
 export default function SettingsPage() {
@@ -36,17 +51,19 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [hasChanges, setHasChanges] = useState(false);
 
-  // Form state
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [greeting, setGreeting] = useState("");
   const [notifEmail, setNotifEmail] = useState("");
   const [notifPhone, setNotifPhone] = useState("");
-  const [widgetColor, setWidgetColor] = useState("#2563eb");
+  const [widgetColor, setWidgetColor] = useState("#8B7355");
   const [widgetPosition, setWidgetPosition] = useState("bottom-right");
   const [threshold, setThreshold] = useState(0.78);
   const [hours, setHours] = useState<Record<string, { open: string; close: string; closed: boolean }>>({});
+
+  const markChanged = () => setHasChanges(true);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -59,11 +76,10 @@ export default function SettingsPage() {
       setGreeting(data.settings?.greeting_message || "");
       setNotifEmail(data.settings?.notification_email || "");
       setNotifPhone(data.settings?.notification_phone || "");
-      setWidgetColor(data.settings?.widget_color || "#2563eb");
+      setWidgetColor(data.settings?.widget_color || "#8B7355");
       setWidgetPosition(data.settings?.widget_position || "bottom-right");
       setThreshold(data.settings?.similarity_threshold ?? 0.78);
 
-      // Initialize business hours
       const existingHours = data.business_hours || {};
       const h: Record<string, { open: string; close: string; closed: boolean }> = {};
       for (const day of DAYS) {
@@ -107,6 +123,7 @@ export default function SettingsPage() {
         { token: token || undefined }
       );
       setSaved(true);
+      setHasChanges(false);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       setError("Failed to save settings. Please try again.");
@@ -116,244 +133,288 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-      </div>
-    );
-  }
+  if (loading) return <PageLoader />;
 
   return (
-    <div className="max-w-2xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Configure your med spa, notifications, and chat widget
-          </p>
-        </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
-      </div>
+    <div className="max-w-2xl animate-fade-up pb-16">
+      <PageHeader
+        title="Settings"
+        subtitle="Configure your med spa, notifications, and chat widget"
+      />
 
       {saved && (
-        <div className="mt-4 rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-700">
-          Settings saved successfully.
-        </div>
+        <Card className="mb-4 bg-spa-success/10 border-spa-success/30">
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-spa-success" />
+            <p className="text-sm text-spa-success font-medium">Settings saved successfully.</p>
+          </div>
+        </Card>
       )}
       {error && (
-        <div className="mt-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-          {error}
-        </div>
+        <Card className="mb-4 bg-spa-danger/10 border-spa-danger/30">
+          <p className="text-sm text-spa-danger">{error}</p>
+        </Card>
       )}
 
-      {/* Business Info */}
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900">Business Information</h2>
-        <div className="mt-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Business Name
-            </label>
-            <input
-              type="text"
+      <div className="space-y-6">
+        {/* Business Info */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4.5 w-4.5 text-spa-primary" />
+              <CardTitle>Business Information</CardTitle>
+            </div>
+          </CardHeader>
+          <div className="space-y-4">
+            <Input
+              label="Business Name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onChange={(e) => { setName(e.target.value); markChanged(); }}
               placeholder="Glow Med Spa"
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Phone Number
-            </label>
-            <input
+            <Input
+              label="Phone Number"
               type="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onChange={(e) => { setPhone(e.target.value); markChanged(); }}
               placeholder="(555) 123-4567"
             />
           </div>
-        </div>
-      </section>
+        </Card>
 
-      {/* Business Hours */}
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900">Business Hours</h2>
-        <div className="mt-4 space-y-2">
-          {DAYS.map((day) => (
-            <div key={day} className="flex items-center gap-3">
-              <span className="w-10 text-sm font-medium text-gray-700">
-                {dayLabels[day]}
-              </span>
-              <label className="flex items-center gap-1.5">
-                <input
-                  type="checkbox"
-                  checked={!hours[day]?.closed}
-                  onChange={(e) =>
-                    setHours((prev) => ({
-                      ...prev,
-                      [day]: { ...prev[day], closed: !e.target.checked },
-                    }))
-                  }
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-xs text-gray-500">Open</span>
-              </label>
-              {!hours[day]?.closed ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="time"
-                    value={hours[day]?.open || "09:00"}
-                    onChange={(e) =>
-                      setHours((prev) => ({
-                        ...prev,
-                        [day]: { ...prev[day], open: e.target.value },
-                      }))
-                    }
-                    className="rounded-lg border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-                  />
-                  <span className="text-xs text-gray-400">to</span>
-                  <input
-                    type="time"
-                    value={hours[day]?.close || "17:00"}
-                    onChange={(e) =>
-                      setHours((prev) => ({
-                        ...prev,
-                        [day]: { ...prev[day], close: e.target.value },
-                      }))
-                    }
-                    className="rounded-lg border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-              ) : (
-                <span className="text-xs text-gray-400">Closed</span>
-              )}
+        {/* Business Hours */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4.5 w-4.5 text-spa-primary" />
+              <CardTitle>Business Hours</CardTitle>
             </div>
-          ))}
-        </div>
-      </section>
+          </CardHeader>
+          <div className="space-y-2">
+            {DAYS.map((day) => {
+              const isClosed = hours[day]?.closed;
+              return (
+                <div
+                  key={day}
+                  className="flex items-center gap-4 rounded-lg px-3 py-2.5 transition-colors"
+                  style={{
+                    backgroundColor: isClosed ? "transparent" : "var(--surface-secondary)",
+                    opacity: isClosed ? 0.5 : 1,
+                  }}
+                >
+                  <span
+                    className="w-24 text-sm font-medium shrink-0"
+                    style={{ color: "var(--text)" }}
+                  >
+                    {dayLabels[day]}
+                  </span>
+                  <ToggleSwitch
+                    checked={!isClosed}
+                    onChange={(checked) => {
+                      setHours((prev) => ({
+                        ...prev,
+                        [day]: { ...prev[day], closed: !checked },
+                      }));
+                      markChanged();
+                    }}
+                  />
+                  {!isClosed ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        value={hours[day]?.open || "09:00"}
+                        onChange={(e) => {
+                          setHours((prev) => ({
+                            ...prev,
+                            [day]: { ...prev[day], open: e.target.value },
+                          }));
+                          markChanged();
+                        }}
+                        className="rounded-lg border px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-spa-accent/30"
+                        style={{
+                          backgroundColor: "var(--surface)",
+                          borderColor: "var(--border)",
+                          color: "var(--text)",
+                        }}
+                      />
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>to</span>
+                      <input
+                        type="time"
+                        value={hours[day]?.close || "17:00"}
+                        onChange={(e) => {
+                          setHours((prev) => ({
+                            ...prev,
+                            [day]: { ...prev[day], close: e.target.value },
+                          }));
+                          markChanged();
+                        }}
+                        className="rounded-lg border px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-spa-accent/30"
+                        style={{
+                          backgroundColor: "var(--surface)",
+                          borderColor: "var(--border)",
+                          color: "var(--text)",
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>Closed</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
 
-      {/* Chat Widget */}
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900">Chat Widget</h2>
-        <div className="mt-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Greeting Message
-            </label>
-            <textarea
+        {/* Chat Widget */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-4.5 w-4.5 text-spa-primary" />
+              <CardTitle>Chat Widget</CardTitle>
+            </div>
+          </CardHeader>
+          <div className="space-y-4">
+            <Textarea
+              label="Greeting Message"
               value={greeting}
-              onChange={(e) => setGreeting(e.target.value)}
+              onChange={(e) => { setGreeting(e.target.value); markChanged(); }}
               rows={3}
-              className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="Welcome! How can I help you today?"
             />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Widget Color
-              </label>
-              <div className="mt-1 flex items-center gap-2">
-                <input
-                  type="color"
-                  value={widgetColor}
-                  onChange={(e) => setWidgetColor(e.target.value)}
-                  className="h-8 w-8 cursor-pointer rounded border border-gray-200"
-                />
-                <input
-                  type="text"
-                  value={widgetColor}
-                  onChange={(e) => setWidgetColor(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-                />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                  Widget Color
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={widgetColor}
+                    onChange={(e) => { setWidgetColor(e.target.value); markChanged(); }}
+                    className="h-9 w-9 cursor-pointer rounded-lg border"
+                    style={{ borderColor: "var(--border)" }}
+                  />
+                  <input
+                    type="text"
+                    value={widgetColor}
+                    onChange={(e) => { setWidgetColor(e.target.value); markChanged(); }}
+                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-spa-accent/30"
+                    style={{
+                      backgroundColor: "var(--surface)",
+                      borderColor: "var(--border)",
+                      color: "var(--text)",
+                    }}
+                  />
+                </div>
+                {/* Mini preview */}
+                <div className="mt-2 flex justify-end">
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl shadow-lg transition-colors"
+                    style={{ backgroundColor: widgetColor }}
+                  >
+                    <MessageCircle className="h-6 w-6 text-white" />
+                  </div>
+                </div>
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Widget Position
-              </label>
-              <select
+              <Select
+                label="Widget Position"
+                options={[
+                  { value: "bottom-right", label: "Bottom Right" },
+                  { value: "bottom-left", label: "Bottom Left" },
+                ]}
                 value={widgetPosition}
-                onChange={(e) => setWidgetPosition(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              >
-                <option value="bottom-right">Bottom Right</option>
-                <option value="bottom-left">Bottom Left</option>
-              </select>
+                onChange={(e) => { setWidgetPosition(e.target.value); markChanged(); }}
+              />
             </div>
           </div>
-        </div>
-      </section>
+        </Card>
 
-      {/* Notifications */}
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900">Escalation Notifications</h2>
-        <div className="mt-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Notification Email
-            </label>
-            <input
-              type="email"
-              value={notifEmail}
-              onChange={(e) => setNotifEmail(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="staff@yourspa.com"
-            />
-            <p className="mt-1 text-xs text-gray-400">
-              Receives alerts when conversations are escalated
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Notification Phone (SMS)
-            </label>
-            <input
+        {/* Notifications */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Bell className="h-4.5 w-4.5 text-spa-primary" />
+              <CardTitle>Escalation Notifications</CardTitle>
+            </div>
+          </CardHeader>
+          <div className="space-y-4">
+            <div>
+              <Input
+                label="Notification Email"
+                type="email"
+                value={notifEmail}
+                onChange={(e) => { setNotifEmail(e.target.value); markChanged(); }}
+                placeholder="staff@yourspa.com"
+              />
+              <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                Receives alerts when conversations are escalated
+              </p>
+            </div>
+            <Input
+              label="Notification Phone (SMS)"
               type="tel"
               value={notifPhone}
-              onChange={(e) => setNotifPhone(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onChange={(e) => { setNotifPhone(e.target.value); markChanged(); }}
               placeholder="(555) 123-4567"
             />
           </div>
-        </div>
-      </section>
+        </Card>
 
-      {/* Knowledge Base Settings */}
-      <section className="mt-8 mb-12">
-        <h2 className="text-lg font-semibold text-gray-900">Knowledge Base</h2>
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Similarity Threshold
-          </label>
-          <div className="mt-1 flex items-center gap-3">
-            <input
-              type="range"
-              min="0.5"
-              max="0.95"
-              step="0.01"
-              value={threshold}
-              onChange={(e) => setThreshold(parseFloat(e.target.value))}
-              className="flex-1"
-            />
-            <span className="w-12 text-sm font-medium text-gray-700 text-right">
-              {threshold.toFixed(2)}
-            </span>
+        {/* Knowledge Base */}
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-4.5 w-4.5 text-spa-primary" />
+              <CardTitle>Knowledge Base</CardTitle>
+            </div>
+          </CardHeader>
+          <div>
+            <label className="block text-sm font-medium mb-2" style={{ color: "var(--text-secondary)" }}>
+              Similarity Threshold
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min="0.5"
+                max="0.95"
+                step="0.01"
+                value={threshold}
+                onChange={(e) => { setThreshold(parseFloat(e.target.value)); markChanged(); }}
+                className="flex-1 accent-spa-accent"
+              />
+              <span
+                className="w-12 text-sm font-semibold text-right"
+                style={{ color: "var(--text)" }}
+              >
+                {threshold.toFixed(2)}
+              </span>
+            </div>
+            <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+              Higher values return more relevant but fewer results. Default: 0.78
+            </p>
           </div>
-          <p className="mt-1 text-xs text-gray-400">
-            Higher values return more relevant but fewer results. Default: 0.78
-          </p>
+        </Card>
+      </div>
+
+      {/* Sticky save bar */}
+      {hasChanges && (
+        <div
+          className="fixed bottom-0 left-64 right-0 px-6 py-3 flex items-center justify-end gap-3 border-t z-50"
+          style={{
+            backgroundColor: "var(--surface)",
+            borderColor: "var(--border)",
+            boxShadow: "0 -4px 12px rgba(0,0,0,0.06)",
+          }}
+        >
+          <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+            You have unsaved changes
+          </span>
+          <Button onClick={handleSave} disabled={saving}>
+            <Save className="h-4 w-4" />
+            {saving ? "Saving..." : "Save Changes"}
+          </Button>
         </div>
-      </section>
+      )}
     </div>
   );
 }

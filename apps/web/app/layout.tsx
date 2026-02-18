@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { ThemeProvider } from "@/lib/theme-context";
+import { cormorantGaramond, dmSans } from "./fonts";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +18,13 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider dynamic>
-      <html lang="en">
-        <body className="min-h-screen bg-background antialiased">
-          {children}
+      <html
+        lang="en"
+        className={`${cormorantGaramond.variable} ${dmSans.variable}`}
+        suppressHydrationWarning
+      >
+        <body className="min-h-screen antialiased" style={{ backgroundColor: "var(--bg)", color: "var(--text)" }}>
+          <ThemeProvider>{children}</ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

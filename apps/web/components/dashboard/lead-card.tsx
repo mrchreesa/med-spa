@@ -1,6 +1,9 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { timeAgo, capitalize } from "@/lib/format";
+import { StatusBadge, leadStatusVariant } from "@/components/ui/status-badge";
+import { Globe, Phone, MessageSquare } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -22,13 +25,25 @@ interface LeadCardProps {
   isSelected: boolean;
 }
 
-const intentColors: Record<string, string> = {
-  appointment: "bg-green-100 text-green-700",
-  pricing: "bg-blue-100 text-blue-700",
-  treatment_info: "bg-purple-100 text-purple-700",
-  complaint: "bg-red-100 text-red-700",
-  emergency: "bg-red-200 text-red-800",
-  general: "bg-gray-100 text-gray-700",
+const intentVariant: Record<string, "success" | "info" | "accent" | "danger" | "warning" | "muted"> = {
+  appointment: "success",
+  pricing: "info",
+  treatment_info: "accent",
+  complaint: "danger",
+  emergency: "danger",
+  general: "muted",
+};
+
+const sourceIcons: Record<string, typeof Globe> = {
+  web_chat: Globe,
+  phone: Phone,
+  sms: MessageSquare,
+};
+
+const sourceLabels: Record<string, string> = {
+  web_chat: "Web",
+  phone: "Phone",
+  sms: "SMS",
 };
 
 const statusOptions = [
@@ -39,15 +54,14 @@ const statusOptions = [
   { value: "lost", label: "Lost" },
 ];
 
-function timeAgo(dateStr: string): string {
-  const now = new Date();
-  const date = new Date(dateStr);
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (seconds < 60) return "just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+function getInitials(name: string | null): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 }
 
 export function LeadCard({
@@ -56,36 +70,48 @@ export function LeadCard({
   onSelect,
   isSelected,
 }: LeadCardProps) {
+  const SourceIcon = sourceIcons[lead.source] || Globe;
+
   return (
     <div
       onClick={() => onSelect(lead.id)}
       className={cn(
-        "cursor-pointer rounded-lg border p-4 transition-colors hover:bg-gray-50",
-        isSelected ? "border-blue-500 bg-blue-50/30" : "border-gray-200"
+        "cursor-pointer rounded-xl border p-4 transition-all duration-150",
+        isSelected
+          ? "border-l-2 border-l-spa-accent"
+          : "hover:shadow-sm"
       )}
+      style={{
+        backgroundColor: isSelected ? "var(--surface)" : "var(--surface)",
+        borderColor: isSelected ? "var(--border)" : "var(--border)",
+        ...(isSelected ? { borderLeftColor: "var(--color-spa-accent)" } : {}),
+      }}
+      onMouseEnter={(e) => {
+        if (!isSelected) e.currentTarget.style.backgroundColor = "var(--surface-secondary)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "var(--surface)";
+      }}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start gap-3">
+        {/* Avatar */}
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+          style={{ backgroundColor: "var(--surface-secondary)", color: "var(--text-secondary)" }}
+        >
+          {getInitials(lead.name)}
+        </div>
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Intent badge */}
             {lead.intent && (
-              <span
-                className={cn(
-                  "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                  intentColors[lead.intent] || intentColors.general
-                )}
-              >
-                {lead.intent.replace("_", " ")}
-              </span>
+              <StatusBadge variant={intentVariant[lead.intent] || "muted"}>
+                {capitalize(lead.intent)}
+              </StatusBadge>
             )}
-
-            {/* Source icon */}
-            <span className="text-xs text-gray-400">
-              {lead.source === "web_chat"
-                ? "Web Chat"
-                : lead.source === "phone"
-                ? "Phone"
-                : "SMS"}
+            <span className="flex items-center gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+              <SourceIcon className="h-3 w-3" />
+              {sourceLabels[lead.source] || lead.source}
             </span>
 
             {/* Urgency dots */}
@@ -95,29 +121,28 @@ export function LeadCard({
                   key={n}
                   className={cn(
                     "w-1.5 h-1.5 rounded-full",
-                    n <= lead.urgency ? "bg-orange-400" : "bg-gray-200"
+                    n <= lead.urgency ? "bg-spa-warning" : ""
                   )}
+                  style={n > lead.urgency ? { backgroundColor: "var(--border)" } : undefined}
                 />
               ))}
             </span>
           </div>
 
-          {/* Summary */}
-          <p className="mt-1.5 text-sm text-gray-900 line-clamp-2">
+          <p className="mt-1.5 text-sm line-clamp-2" style={{ color: "var(--text)" }}>
             {lead.summary || "No summary available"}
           </p>
 
-          {/* Contact info if available */}
           {(lead.name || lead.phone || lead.email) && (
-            <p className="mt-1 text-xs text-gray-500">
-              {[lead.name, lead.phone, lead.email].filter(Boolean).join(" - ")}
+            <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+              {[lead.name, lead.phone, lead.email].filter(Boolean).join(" \u00B7 ")}
             </p>
           )}
         </div>
 
         {/* Time + Status */}
         <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <span className="text-xs text-gray-400">
+          <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
             {timeAgo(lead.created_at)}
           </span>
           <select
@@ -127,7 +152,12 @@ export function LeadCard({
               onStatusChange(lead.id, e.target.value);
             }}
             onClick={(e) => e.stopPropagation()}
-            className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-spa-accent/30"
+            style={{
+              backgroundColor: "var(--surface)",
+              borderColor: "var(--border)",
+              color: "var(--text-secondary)",
+            }}
           >
             {statusOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>

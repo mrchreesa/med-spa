@@ -1,6 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Upload, FileText } from "lucide-react";
 
 interface DocumentUploadProps {
   onUpload: (file: File, title: string, docType: string) => Promise<void>;
@@ -19,7 +24,26 @@ export function DocumentUpload({ onUpload }: DocumentUploadProps) {
   const [docType, setDocType] = useState("faq");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file && /\.(pdf|txt|md)$/.test(file.name)) {
+      setSelectedFile(file);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setIsDragging(false);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +54,6 @@ export function DocumentUpload({ onUpload }: DocumentUploadProps) {
 
     try {
       await onUpload(selectedFile, title.trim(), docType);
-      // Reset form
       setTitle("");
       setSelectedFile(null);
       setDocType("faq");
@@ -43,62 +66,96 @@ export function DocumentUpload({ onUpload }: DocumentUploadProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 p-4">
-      <h3 className="text-sm font-medium text-gray-900">Upload Document</h3>
-      <p className="mt-1 text-xs text-gray-500">
-        Upload treatment menus, pricing sheets, FAQs, or SOPs for the AI to reference.
-      </p>
-
-      <div className="mt-3 space-y-3">
-        {/* Title */}
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Document title (e.g., Treatment Menu 2025)"
-          className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-        />
-
-        {/* Doc type */}
-        <select
-          value={docType}
-          onChange={(e) => setDocType(e.target.value)}
-          className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+    <Card>
+      <form onSubmit={handleSubmit}>
+        <h3
+          className="text-base font-semibold mb-1"
+          style={{ fontFamily: "var(--font-display), Georgia, serif", color: "var(--text)" }}
         >
-          {docTypes.map((dt) => (
-            <option key={dt.value} value={dt.value}>
-              {dt.label}
-            </option>
-          ))}
-        </select>
+          Upload Document
+        </h3>
+        <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
+          Upload treatment menus, pricing sheets, FAQs, or SOPs for the AI to reference.
+        </p>
 
-        {/* File input */}
-        <div className="flex items-center gap-3">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.txt,.md"
-            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-            className="text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
-            required
-          />
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Document Title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g., Treatment Menu 2025"
+              required
+            />
+            <Select
+              label="Document Type"
+              options={docTypes}
+              value={docType}
+              onChange={(e) => setDocType(e.target.value)}
+            />
+          </div>
+
+          {/* Drop zone */}
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => fileInputRef.current?.click()}
+            className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-8 cursor-pointer transition-colors"
+            style={{
+              borderColor: isDragging
+                ? "var(--color-spa-accent)"
+                : "var(--border)",
+              backgroundColor: isDragging
+                ? "var(--color-spa-accent)"
+                : "var(--surface-secondary)",
+              ...(isDragging ? { opacity: 0.15 } : {}),
+            }}
+          >
+            {selectedFile ? (
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-spa-primary" />
+                <span className="text-sm font-medium" style={{ color: "var(--text)" }}>
+                  {selectedFile.name}
+                </span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  ({(selectedFile.size / 1024).toFixed(1)} KB)
+                </span>
+              </div>
+            ) : (
+              <>
+                <Upload className="h-8 w-8 mb-2" style={{ color: "var(--text-muted)" }} />
+                <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                  Drop file here or click to browse
+                </p>
+                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                  PDF, TXT, or Markdown files
+                </p>
+              </>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.txt,.md"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              className="hidden"
+              required={!selectedFile}
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs text-spa-danger">{error}</p>
+          )}
+
+          <Button
+            type="submit"
+            disabled={!selectedFile || !title.trim() || isUploading}
+          >
+            <Upload className="h-4 w-4" />
+            {isUploading ? "Uploading..." : "Upload & Process"}
+          </Button>
         </div>
-
-        {/* Error message */}
-        {error && (
-          <p className="text-xs text-red-600">{error}</p>
-        )}
-
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={!selectedFile || !title.trim() || isUploading}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isUploading ? "Uploading..." : "Upload & Process"}
-        </button>
-      </div>
-    </form>
+      </form>
+    </Card>
   );
 }

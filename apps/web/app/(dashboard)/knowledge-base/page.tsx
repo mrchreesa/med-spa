@@ -3,7 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { api } from "@/lib/api";
+import { formatDate } from "@/lib/format";
 import { DocumentUpload } from "@/components/dashboard/document-upload";
+import { PageHeader } from "@/components/ui/page-header";
+import { Card } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
+import { PageLoader } from "@/components/ui/loading-spinner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { BookOpen, FileText, File, FileCode, Trash2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface KnowledgeDocument {
   id: string;
@@ -20,6 +29,20 @@ const docTypeLabels: Record<string, string> = {
   pricing: "Pricing",
   faq: "FAQ",
   sop: "SOP",
+};
+
+const docTypeVariant: Record<string, "info" | "accent" | "success" | "warning"> = {
+  treatment_menu: "accent",
+  pricing: "success",
+  faq: "info",
+  sop: "warning",
+};
+
+const docTypeIcons: Record<string, LucideIcon> = {
+  treatment_menu: FileText,
+  pricing: File,
+  faq: FileText,
+  sop: FileCode,
 };
 
 export default function KnowledgeBasePage() {
@@ -79,69 +102,74 @@ export default function KnowledgeBasePage() {
   };
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-900">Knowledge Base</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Upload treatment menus, FAQs, and approved content the AI will reference
-        when chatting with patients.
-      </p>
+    <div className="animate-fade-up">
+      <PageHeader
+        title="Knowledge Base"
+        subtitle="Upload treatment menus, FAQs, and approved content the AI will reference when chatting with patients."
+      />
 
       {error && (
-        <div className="mt-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-          {error}
-        </div>
+        <Card className="mb-4 border-spa-danger/30 bg-spa-danger/5">
+          <p className="text-sm text-spa-danger">{error}</p>
+        </Card>
       )}
 
-      {/* Upload form */}
-      <div className="mt-6">
-        <DocumentUpload onUpload={handleUpload} />
-      </div>
+      <DocumentUpload onUpload={handleUpload} />
 
-      {/* Document list */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900">
+        <h2
+          className="text-lg font-semibold mb-4"
+          style={{ fontFamily: "var(--font-display), Georgia, serif", color: "var(--text)" }}
+        >
           Uploaded Documents
         </h2>
 
         {loading ? (
-          <div className="flex justify-center py-8">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          </div>
+          <PageLoader />
         ) : documents.length === 0 ? (
-          <div className="mt-4 rounded-lg border border-dashed border-gray-300 py-8 text-center">
-            <p className="text-sm text-gray-500">
-              No documents yet. Upload your treatment menu or pricing sheet to
-              get started.
-            </p>
-          </div>
+          <EmptyState
+            icon={BookOpen}
+            title="No documents yet"
+            description="Upload your treatment menu or pricing sheet to get started."
+          />
         ) : (
-          <div className="mt-4 space-y-2">
-            {documents.map((doc) => (
-              <div
-                key={doc.id}
-                className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3"
-              >
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {doc.title}
-                  </p>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                      {docTypeLabels[doc.doc_type] || doc.doc_type}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {new Date(doc.created_at).toLocaleDateString()}
-                    </span>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {documents.map((doc) => {
+              const DocIcon = docTypeIcons[doc.doc_type] || FileText;
+              return (
+                <Card key={doc.id} className="p-4 group">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                        style={{ backgroundColor: "var(--surface-secondary)" }}
+                      >
+                        <DocIcon className="h-5 w-5 text-spa-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold line-clamp-1" style={{ color: "var(--text)" }}>
+                          {doc.title}
+                        </p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <StatusBadge variant={docTypeVariant[doc.doc_type] || "muted"}>
+                            {docTypeLabels[doc.doc_type] || doc.doc_type}
+                          </StatusBadge>
+                          <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                            {formatDate(doc.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDelete(doc.title)}
+                      className="rounded-lg p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-spa-danger/10"
+                    >
+                      <Trash2 className="h-4 w-4 text-spa-danger" />
+                    </button>
                   </div>
-                </div>
-                <button
-                  onClick={() => handleDelete(doc.title)}
-                  className="rounded-md px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  Delete
-                </button>
-              </div>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

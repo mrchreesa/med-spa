@@ -1,1 +1,216 @@
 @import "tailwindcss";
+
+@theme {
+  --color-spa-primary: #8B7355;
+  --color-spa-primary-dark: #6B5842;
+  --color-spa-accent: #C9A96E;
+  --color-spa-success: #7BA68B;
+  --color-spa-warning: #D4A853;
+  --color-spa-danger: #C45B4A;
+  --color-spa-info: #7B95A8;
+  --color-spa-sidebar: var(--sidebar);
+  --color-spa-sidebar-text: var(--sidebar-text);
+  --color-spa-sidebar-active: var(--sidebar-active);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+}
+
+/* Light mode (default) */
+:root {
+  --bg: #FAF8F5;
+  --surface: #FFFFFF;
+  --surface-secondary: #F3EDE7;
+  --text: #2D2926;
+  --text-secondary: #6B6462;
+  --text-muted: #A39E9A;
+  --border: #E8E2DB;
+  --sidebar: #F3EDE7;
+  --sidebar-text: #2D2926;
+  --sidebar-active: #6B5842;
+  --sidebar-border: #D4CAC0;
+  --sidebar-hover: rgba(0, 0, 0, 0.07);
+  --sidebar-active-bg: rgba(139, 115, 85, 0.15);
+  --sidebar-muted: #5C5855;
+}
+
+/* Dark mode */
+[data-theme="dark"] {
+  --bg: #1A1816;
+  --surface: #2D2926;
+  --surface-secondary: #3A3533;
+  --text: #F3EDE7;
+  --text-secondary: #A39E9A;
+  --text-muted: #6B6462;
+  --border: #3A3533;
+  --sidebar: #2D2926;
+  --sidebar-text: #E8E2DB;
+  --sidebar-active: #C9A96E;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-hover: rgba(255, 255, 255, 0.05);
+  --sidebar-active-bg: rgba(255, 255, 255, 0.1);
+  --sidebar-muted: #6B6462;
+}
+
+/* Base styles */
+body {
+  font-family: var(--font-body), "DM Sans", system-ui, sans-serif;
+  color: var(--text);
+  background-color: var(--bg);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Keyframe animations */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* Dark mode: native form elements */
+[data-theme="dark"] select,
+[data-theme="dark"] option {
+  background-color: #2D2926;
+  color: #F3EDE7;
+}
+
+[data-theme="dark"] input[type="time"],
+[data-theme="dark"] input[type="date"] {
+  color-scheme: dark;
+}
+
+/* Dark mode: Clerk popover overrides (rendered via portal at body level) */
+[data-theme="dark"] .cl-card,
+[data-theme="dark"] .cl-modalContent,
+[data-theme="dark"] .cl-userButtonPopoverCard,
+[data-theme="dark"] .cl-organizationSwitcherPopoverCard {
+  background-color: #2D2926 !important;
+  border-color: #3A3533 !important;
+  color: #F3EDE7 !important;
+}
+
+[data-theme="dark"] .cl-userButtonPopoverActionButton,
+[data-theme="dark"] .cl-organizationSwitcherPopoverActionButton {
+  color: #F3EDE7 !important;
+}
+
+[data-theme="dark"] .cl-userButtonPopoverActionButton:hover,
+[data-theme="dark"] .cl-organizationSwitcherPopoverActionButton:hover {
+  background-color: #3A3533 !important;
+}
+
+[data-theme="dark"] .cl-userButtonPopoverActionButtonIcon,
+[data-theme="dark"] .cl-organizationSwitcherPopoverActionButtonIcon {
+  color: #A39E9A !important;
+}
+
+[data-theme="dark"] .cl-userPreview .cl-userPreviewMainIdentifier,
+[data-theme="dark"] .cl-userPreview .cl-userPreviewSecondaryIdentifier {
+  color: #F3EDE7 !important;
+}
+
+[data-theme="dark"] .cl-internal-b1zuol {
+  color: #A39E9A !important;
+}
+
+[data-theme="dark"] .cl-userButtonOuterIdentifier {
+  color: #E8E2DB !important;
+}
+
+[data-theme="dark"] .cl-organizationSwitcherTrigger {
+  color: #E8E2DB !important;
+}
+
+/* Light mode: Clerk sidebar overrides (ensure text visible on light sidebar) */
+.cl-userButtonOuterIdentifier {
+  color: #2D2926 !important;
+}
+
+.cl-organizationSwitcherTrigger {
+  color: #2D2926 !important;
+}
+
+/* Sidebar nav hover states */
+.sidebar-nav-item:not(.sidebar-nav-active):hover {
+  background-color: var(--sidebar-hover);
+  opacity: 1 !important;
+}
+
+/* Skeleton loading shimmer */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-secondary) 25%,
+    var(--surface) 50%,
+    var(--surface-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}

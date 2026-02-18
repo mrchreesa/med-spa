@@ -4,6 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { api } from "@/lib/api";
 import { LeadCard } from "@/components/dashboard/lead-card";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { FilterPills } from "@/components/ui/filter-pills";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { PageLoader } from "@/components/ui/loading-spinner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Users, Search } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -39,6 +47,7 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<
     Array<{ role: string; content: string }>
@@ -81,7 +90,6 @@ export default function LeadsPage() {
     setTranscript([]);
 
     if (leadId !== selectedLeadId) {
-      // Try to find conversation via lead's extra_data
       const lead = leads.find((l) => l.id === leadId);
       if (lead) {
         try {
@@ -90,67 +98,81 @@ export default function LeadsPage() {
             "/conversations",
             { token: token || undefined }
           );
-          const conversations = data.items;
-          // Find conversation linked to this lead
-          const conv = conversations.find((c) =>
-            c.transcript?.some(
-              (m: { role: string; content: string }) => m.role === "user"
-            )
+          const conv = data.items.find((c) =>
+            c.transcript?.some((m) => m.role === "user")
           );
           if (conv) {
             setTranscript(conv.transcript || []);
           }
         } catch {
-          // Conversation not found — that's ok
+          // Conversation not found
         }
       }
     }
   };
 
-  return (
-    <div>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {leads.length} lead{leads.length !== 1 ? "s" : ""} captured
-          </p>
-        </div>
+  const filteredLeads = leads.filter((lead) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      lead.name?.toLowerCase().includes(q) ||
+      lead.email?.toLowerCase().includes(q) ||
+      lead.phone?.includes(q) ||
+      lead.summary?.toLowerCase().includes(q)
+    );
+  });
 
-        {/* Status filter */}
-        <div className="flex gap-1">
-          {statusFilters.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setStatusFilter(f.value)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                statusFilter === f.value
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+  return (
+    <div className="animate-fade-up">
+      <PageHeader
+        title="Leads"
+        subtitle={`${leads.length} lead${leads.length !== 1 ? "s" : ""} captured`}
+        actions={
+          <FilterPills
+            options={statusFilters}
+            value={statusFilter}
+            onChange={setStatusFilter}
+          />
+        }
+      />
+
+      {/* Search */}
+      <div className="mb-4 relative">
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4"
+          style={{ color: "var(--text-muted)" }}
+        />
+        <input
+          type="text"
+          placeholder="Search leads by name, email, phone..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full rounded-xl border pl-10 pr-4 py-2.5 text-sm outline-none transition-colors focus:ring-2 focus:ring-spa-accent/30 focus:border-spa-accent"
+          style={{
+            backgroundColor: "var(--surface)",
+            borderColor: "var(--border)",
+            color: "var(--text)",
+          }}
+        />
       </div>
 
-      <div className="mt-6 flex gap-6">
+      <div className="flex gap-6">
         {/* Lead list */}
         <div className="flex-1 space-y-2">
           {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-            </div>
-          ) : leads.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center">
-              <p className="text-sm text-gray-500">
-                No leads yet. They&apos;ll appear here when patients chat via
-                the embed widget.
-              </p>
-            </div>
+            <PageLoader />
+          ) : filteredLeads.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title={searchQuery || statusFilter ? "No matching leads" : "No leads yet"}
+              description={
+                searchQuery || statusFilter
+                  ? "Try adjusting your filters or search query."
+                  : "They'll appear here when patients chat via the embed widget."
+              }
+            />
           ) : (
-            leads.map((lead) => (
+            filteredLeads.map((lead) => (
               <LeadCard
                 key={lead.id}
                 lead={lead}
@@ -164,9 +186,9 @@ export default function LeadsPage() {
 
         {/* Transcript panel */}
         {selectedLeadId && (
-          <div className="w-80 shrink-0 rounded-lg border border-gray-200 bg-gray-50">
-            <div className="border-b p-3">
-              <h3 className="text-sm font-medium text-gray-900">
+          <Card className="w-80 shrink-0 p-0 animate-slide-in-right">
+            <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+              <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
                 Conversation Transcript
               </h3>
             </div>
@@ -175,25 +197,34 @@ export default function LeadsPage() {
                 transcript.map((msg, i) => (
                   <div
                     key={i}
-                    className={`rounded-lg p-2.5 text-xs ${
-                      msg.role === "user"
-                        ? "bg-blue-100 text-blue-900 ml-4"
-                        : "bg-white text-gray-800 mr-4 border"
+                    className={`rounded-xl p-2.5 text-xs ${
+                      msg.role === "user" ? "ml-4" : "mr-4"
                     }`}
+                    style={{
+                      backgroundColor:
+                        msg.role === "user"
+                          ? "var(--color-spa-primary)"
+                          : "var(--surface-secondary)",
+                      color:
+                        msg.role === "user" ? "#FFFFFF" : "var(--text)",
+                    }}
                   >
-                    <span className="font-medium">
+                    <span className="font-medium opacity-70">
                       {msg.role === "user" ? "Patient" : "AI"}:
                     </span>{" "}
                     {msg.content}
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-gray-400 text-center py-4">
+                <p
+                  className="text-xs text-center py-8"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   No transcript available
                 </p>
               )}
             </div>
-          </div>
+          </Card>
         )}
       </div>
     </div>

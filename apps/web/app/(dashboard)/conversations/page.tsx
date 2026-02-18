@@ -4,31 +4,34 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { timeAgo, formatDateTime } from "@/lib/format";
 import type { Conversation } from "@med-spa/shared";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterPills } from "@/components/ui/filter-pills";
+import { Card } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { PageLoader } from "@/components/ui/loading-spinner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Globe, Phone, MessageSquare, Search, Sparkles } from "lucide-react";
+
+const channelFilters = [
+  { value: "", label: "All" },
+  { value: "web_chat", label: "Web Chat" },
+  { value: "phone", label: "Phone" },
+  { value: "sms", label: "SMS" },
+];
+
+const channelIcons: Record<string, typeof Globe> = {
+  web_chat: Globe,
+  phone: Phone,
+  sms: MessageSquare,
+};
 
 const channelLabels: Record<string, string> = {
   web_chat: "Web Chat",
   phone: "Phone",
   sms: "SMS",
 };
-
-const channelColors: Record<string, string> = {
-  web_chat: "bg-blue-100 text-blue-700",
-  phone: "bg-emerald-100 text-emerald-700",
-  sms: "bg-purple-100 text-purple-700",
-};
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
-}
 
 function getPreview(transcript: Array<{ role: string; content: string }>): string {
   if (!transcript || transcript.length === 0) return "No messages yet";
@@ -81,122 +84,135 @@ export default function ConversationsPage() {
   const selected = conversations.find((c) => c.id === selectedId);
 
   return (
-    <div className="flex h-full gap-6">
-      {/* Left panel — conversation list */}
+    <div className="flex h-full gap-6 animate-fade-up">
+      {/* Left panel */}
       <div className="w-96 shrink-0 flex flex-col">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Conversations</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {conversations.length} conversation{conversations.length !== 1 ? "s" : ""} across all channels
-          </p>
-        </div>
+        <PageHeader
+          title="Conversations"
+          subtitle={`${conversations.length} conversation${conversations.length !== 1 ? "s" : ""} across all channels`}
+        />
 
-        <div className="mt-4 space-y-2">
-          <input
-            type="text"
-            placeholder="Search messages..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <div className="flex gap-1">
-            {[
-              { value: "", label: "All" },
-              { value: "web_chat", label: "Web Chat" },
-              { value: "phone", label: "Phone" },
-              { value: "sms", label: "SMS" },
-            ].map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setChannelFilter(f.value)}
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                  channelFilter === f.value
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
+        <div className="space-y-3 mb-4">
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4"
+              style={{ color: "var(--text-muted)" }}
+            />
+            <input
+              type="text"
+              placeholder="Search messages..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-xl border pl-10 pr-4 py-2.5 text-sm outline-none transition-colors focus:ring-2 focus:ring-spa-accent/30 focus:border-spa-accent"
+              style={{
+                backgroundColor: "var(--surface)",
+                borderColor: "var(--border)",
+                color: "var(--text)",
+              }}
+            />
           </div>
+          <FilterPills
+            options={channelFilters}
+            value={channelFilter}
+            onChange={setChannelFilter}
+          />
         </div>
 
-        <div className="mt-4 flex-1 space-y-1 overflow-y-auto">
+        <div className="flex-1 space-y-1.5 overflow-y-auto">
           {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-            </div>
+            <PageLoader />
           ) : filtered.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center">
-              <p className="text-sm text-gray-500">
-                {search || channelFilter
-                  ? "No conversations match your filters."
-                  : "No conversations yet. They\u2019ll appear when patients use the chat widget."}
-              </p>
-            </div>
+            <EmptyState
+              icon={MessageSquare}
+              title={search || channelFilter ? "No matching conversations" : "No conversations yet"}
+              description={
+                search || channelFilter
+                  ? "Try adjusting your filters."
+                  : "They'll appear when patients use the chat widget."
+              }
+            />
           ) : (
-            filtered.map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => setSelectedId(conv.id)}
-                className={cn(
-                  "w-full rounded-lg border p-3 text-left transition-colors",
-                  selectedId === conv.id
-                    ? "border-blue-300 bg-blue-50"
-                    : "border-gray-200 hover:bg-gray-50"
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                      channelColors[conv.channel] || "bg-gray-100 text-gray-700"
-                    )}
-                  >
-                    {channelLabels[conv.channel] || conv.channel}
-                  </span>
-                  <span className="text-xs text-gray-400">
-                    {timeAgo(conv.created_at)}
-                  </span>
-                </div>
-                <p className="mt-1.5 text-sm text-gray-700 line-clamp-2">
-                  {getPreview(conv.transcript)}
-                </p>
-                <p className="mt-1 text-xs text-gray-400">
-                  {conv.transcript?.length ?? 0} message{(conv.transcript?.length ?? 0) !== 1 ? "s" : ""}
-                </p>
-              </button>
-            ))
+            filtered.map((conv) => {
+              const isActive = selectedId === conv.id;
+              const ChannelIcon = channelIcons[conv.channel] || Globe;
+              return (
+                <button
+                  key={conv.id}
+                  onClick={() => setSelectedId(conv.id)}
+                  className={cn(
+                    "w-full rounded-xl border p-3.5 text-left transition-all duration-150",
+                    isActive ? "border-l-2" : "hover:shadow-sm"
+                  )}
+                  style={{
+                    backgroundColor: isActive ? "var(--surface)" : "var(--surface)",
+                    borderColor: "var(--border)",
+                    ...(isActive ? { borderLeftColor: "var(--color-spa-accent)" } : {}),
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = "var(--surface-secondary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--surface)";
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <ChannelIcon className="h-3.5 w-3.5 text-spa-primary" />
+                      <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                        {channelLabels[conv.channel] || conv.channel}
+                      </span>
+                    </span>
+                    <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                      {timeAgo(conv.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-sm line-clamp-2" style={{ color: "var(--text)" }}>
+                    {getPreview(conv.transcript)}
+                  </p>
+                  <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                    {conv.transcript?.length ?? 0} message{(conv.transcript?.length ?? 0) !== 1 ? "s" : ""}
+                  </p>
+                </button>
+              );
+            })
           )}
         </div>
       </div>
 
       {/* Right panel — transcript detail */}
-      <div className="flex-1 flex flex-col rounded-lg border border-gray-200 bg-white">
+      <Card className="flex-1 flex flex-col p-0 overflow-hidden">
         {selected ? (
           <>
-            <div className="border-b px-5 py-4">
+            <div
+              className="px-5 py-4"
+              style={{ borderBottom: "1px solid var(--border)" }}
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-semibold text-gray-900">
+                  <h2
+                    className="text-lg font-semibold"
+                    style={{ fontFamily: "var(--font-display), Georgia, serif", color: "var(--text)" }}
+                  >
                     Conversation
                   </h2>
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                      channelColors[selected.channel] || "bg-gray-100"
-                    )}
-                  >
+                  <StatusBadge variant="info" dot>
                     {channelLabels[selected.channel] || selected.channel}
-                  </span>
+                  </StatusBadge>
                 </div>
-                <span className="text-xs text-gray-400">
-                  {new Date(selected.created_at).toLocaleString()}
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {formatDateTime(selected.created_at)}
                 </span>
               </div>
               {selected.summary && (
-                <p className="mt-1 text-sm text-gray-500">{selected.summary}</p>
+                <div
+                  className="mt-2 rounded-lg px-3 py-2 text-sm"
+                  style={{
+                    backgroundColor: "var(--surface-secondary)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  {selected.summary}
+                </div>
               )}
             </div>
 
@@ -206,36 +222,59 @@ export default function ConversationsPage() {
                   <div
                     key={i}
                     className={cn(
-                      "max-w-[80%] rounded-xl px-4 py-2.5 text-sm",
-                      msg.role === "user"
-                        ? "ml-auto bg-blue-600 text-white"
-                        : "mr-auto bg-gray-100 text-gray-800"
+                      "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm animate-fade-up",
+                      msg.role === "user" ? "ml-auto" : "mr-auto"
                     )}
+                    style={{
+                      backgroundColor:
+                        msg.role === "user"
+                          ? "var(--color-spa-primary)"
+                          : "var(--surface-secondary)",
+                      color:
+                        msg.role === "user" ? "#FFFFFF" : "var(--text)",
+                      animationDelay: `${i * 0.03}s`,
+                    }}
                   >
-                    <p className="text-xs font-medium mb-1 opacity-70">
-                      {msg.role === "user" ? "Patient" : "AI Concierge"}
+                    <p className="text-[11px] font-medium mb-1 flex items-center gap-1" style={{ opacity: 0.7 }}>
+                      {msg.role === "user" ? (
+                        "Patient"
+                      ) : (
+                        <>
+                          <Sparkles className="h-3 w-3" /> AI Concierge
+                        </>
+                      )}
                     </p>
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   </div>
                 ))
               ) : (
-                <p className="text-center text-sm text-gray-400 py-12">
-                  No messages in this conversation
-                </p>
+                <div className="flex flex-1 items-center justify-center py-12">
+                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                    No messages in this conversation
+                  </p>
+                </div>
               )}
             </div>
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
-              <p className="text-sm font-medium text-gray-900">Select a conversation</p>
-              <p className="mt-1 text-xs text-gray-500">
+              <div
+                className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl"
+                style={{ backgroundColor: "var(--surface-secondary)" }}
+              >
+                <MessageSquare className="h-6 w-6" style={{ color: "var(--text-muted)" }} />
+              </div>
+              <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
+                Select a conversation
+              </p>
+              <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
                 Choose a conversation from the list to view the transcript
               </p>
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

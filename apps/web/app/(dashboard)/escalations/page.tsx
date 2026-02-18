@@ -3,7 +3,23 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { timeAgo } from "@/lib/format";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterPills } from "@/components/ui/filter-pills";
+import { Card } from "@/components/ui/card";
+import { StatusBadge, escalationStatusVariant, escalationReasonVariant } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
+import { PageLoader } from "@/components/ui/loading-spinner";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  AlertTriangle,
+  HelpCircle,
+  User,
+  ShieldAlert,
+  MessageCircleWarning,
+  CheckCircle2,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface Escalation {
   id: string;
@@ -25,19 +41,20 @@ const reasonLabels: Record<string, string> = {
   patient_request: "Patient Requested",
 };
 
-const reasonColors: Record<string, string> = {
-  emergency: "bg-red-100 text-red-700",
-  complaint: "bg-orange-100 text-orange-700",
-  medical_question: "bg-yellow-100 text-yellow-700",
-  patient_request: "bg-blue-100 text-blue-700",
-  ai_unsure: "bg-gray-100 text-gray-700",
+const reasonIcons: Record<string, LucideIcon> = {
+  emergency: ShieldAlert,
+  complaint: MessageCircleWarning,
+  medical_question: HelpCircle,
+  patient_request: User,
+  ai_unsure: AlertTriangle,
 };
 
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  in_progress: "bg-blue-50 text-blue-700 border-blue-200",
-  resolved: "bg-green-50 text-green-700 border-green-200",
-};
+const statusFilters = [
+  { value: "", label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "resolved", label: "Resolved" },
+];
 
 export default function EscalationsPage() {
   const { getToken } = useAuth();
@@ -85,103 +102,132 @@ export default function EscalationsPage() {
 
   const pendingCount = escalations.filter((e) => e.status === "pending").length;
 
+  // Group by status
+  const grouped = {
+    pending: escalations.filter((e) => e.status === "pending"),
+    in_progress: escalations.filter((e) => e.status === "in_progress"),
+    resolved: escalations.filter((e) => e.status === "resolved"),
+  };
+
+  const statusOrder = statusFilter
+    ? [statusFilter]
+    : ["pending", "in_progress", "resolved"];
+
+  const statusGroupLabels: Record<string, string> = {
+    pending: "Pending",
+    in_progress: "In Progress",
+    resolved: "Resolved",
+  };
+
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Escalations
-            {pendingCount > 0 && (
-              <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
-                {pendingCount} pending
-              </span>
-            )}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Conversations flagged for human review
-          </p>
-        </div>
+    <div className="animate-fade-up">
+      <PageHeader
+        title="Escalations"
+        subtitle="Conversations flagged for human review"
+        badge={
+          pendingCount > 0 ? (
+            <StatusBadge variant="danger" dot>
+              {pendingCount} pending
+            </StatusBadge>
+          ) : undefined
+        }
+        actions={
+          <FilterPills
+            options={statusFilters}
+            value={statusFilter}
+            onChange={setStatusFilter}
+          />
+        }
+      />
 
-        <div className="flex gap-1">
-          {[
-            { value: "", label: "All" },
-            { value: "pending", label: "Pending" },
-            { value: "in_progress", label: "In Progress" },
-            { value: "resolved", label: "Resolved" },
-          ].map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setStatusFilter(f.value)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                statusFilter === f.value
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {loading ? (
+        <PageLoader />
+      ) : escalations.length === 0 ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="No escalations"
+          description="The AI is handling conversations within scope. Escalations appear here when flagged."
+        />
+      ) : (
+        <div className="space-y-8">
+          {statusOrder.map((status) => {
+            const items = grouped[status as keyof typeof grouped] || [];
+            if (items.length === 0) return null;
+            return (
+              <div key={status}>
+                <h2
+                  className="text-sm font-semibold mb-3 flex items-center gap-2"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {statusGroupLabels[status]}
+                  <span
+                    className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                    style={{ backgroundColor: "var(--surface-secondary)", color: "var(--text-muted)" }}
+                  >
+                    {items.length}
+                  </span>
+                </h2>
+                <div className="space-y-2">
+                  {items.map((esc) => {
+                    const ReasonIcon = reasonIcons[esc.reason] || AlertTriangle;
+                    return (
+                      <Card key={esc.id} className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-3">
+                            <div
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                              style={{ backgroundColor: "var(--surface-secondary)" }}
+                            >
+                              <ReasonIcon
+                                className={`h-4.5 w-4.5 ${
+                                  esc.reason === "emergency"
+                                    ? "text-spa-danger"
+                                    : esc.reason === "complaint"
+                                      ? "text-spa-warning"
+                                      : "text-spa-info"
+                                }`}
+                              />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <StatusBadge variant={escalationReasonVariant[esc.reason] || "muted"}>
+                                  {reasonLabels[esc.reason] || esc.reason}
+                                </StatusBadge>
+                                <StatusBadge variant={escalationStatusVariant[esc.status] || "muted"} dot>
+                                  {statusGroupLabels[esc.status] || esc.status}
+                                </StatusBadge>
+                              </div>
+                              {esc.notes && (
+                                <p className="mt-2 text-sm" style={{ color: "var(--text)" }}>
+                                  {esc.notes}
+                                </p>
+                              )}
+                              <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                                {timeAgo(esc.created_at)}
+                              </p>
+                            </div>
+                          </div>
 
-      <div className="mt-6 space-y-3">
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          </div>
-        ) : escalations.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center">
-            <p className="text-sm text-gray-500">
-              No escalations. The AI is handling conversations within scope.
-            </p>
-          </div>
-        ) : (
-          escalations.map((esc) => (
-            <div
-              key={esc.id}
-              className={cn(
-                "rounded-lg border p-4",
-                statusColors[esc.status] || "border-gray-200"
-              )}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                        reasonColors[esc.reason] || reasonColors.ai_unsure
-                      )}
-                    >
-                      {reasonLabels[esc.reason] || esc.reason}
-                    </span>
-                    <span className="text-xs text-gray-500 capitalize">
-                      {esc.status.replace("_", " ")}
-                    </span>
-                  </div>
-                  {esc.notes && (
-                    <p className="mt-2 text-sm text-gray-700">{esc.notes}</p>
-                  )}
-                  <p className="mt-1 text-xs text-gray-400">
-                    {new Date(esc.created_at).toLocaleString()}
-                  </p>
-                </div>
-
-                <div className="flex gap-2 shrink-0">
-                  {esc.status !== "resolved" && (
-                    <button
-                      onClick={() => handleResolve(esc.id)}
-                      className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
-                    >
-                      Resolve
-                    </button>
-                  )}
+                          {esc.status !== "resolved" && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleResolve(esc.id)}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5 text-spa-success" />
+                              Resolve
+                            </Button>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
-          ))
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
