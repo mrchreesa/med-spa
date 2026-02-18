@@ -2,12 +2,15 @@
 
 import logging
 import re
+import time
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
+from app.agent.instrumented_llm import instrumented_ainvoke
 from app.agent.prompts.system import CONCIERGE_SYSTEM_PROMPT
 from app.config import settings
+from app.services.metrics_collector import get_collector
 
 logger = logging.getLogger(__name__)
 
@@ -96,15 +99,19 @@ def _get_smart_llm():
 
 async def search_knowledge_node(state: dict) -> dict:
     """Retrieve relevant knowledge base content for the user's query."""
-    # Import here to avoid circular imports
     from app.database import async_session_factory
     from app.services.rag import RAGService
 
+    collector = get_collector()
+    if collector:
+        collector.start_node("search_knowledge")
+
     messages = state.get("messages", [])
     if not messages:
+        if collector:
+            collector.end_node("search_knowledge")
         return {"context": "No query provided."}
 
-    # Get the latest user message
     last_user_msg = ""
     for msg in reversed(messages):
         if msg.get("role") == "user":
@@ -112,21 +119,46 @@ async def search_knowledge_node(state: dict) -> dict:
             break
 
     if not last_user_msg:
+        if collector:
+            collector.end_node("search_knowledge")
         return {"context": "No user message found."}
 
     tenant_id = state.get("tenant_id", "")
     if not tenant_id:
+        if collector:
+            collector.end_node("search_knowledge")
         return {"context": "No tenant context available."}
 
     async with async_session_factory() as db:
         rag = RAGService(db)
-        context = await rag.format_context(tenant_id, last_user_msg)
+        context, rag_stats = await rag.search_with_stats(tenant_id, last_user_msg)
+
+        if collector and rag_stats:
+            collector.record_rag_retrieval(
+                query_text=last_user_msg,
+                chunks_returned=rag_stats["chunks_returned"],
+                chunks_above_threshold=rag_stats["chunks_above_threshold"],
+                avg_similarity=rag_stats.get("avg_similarity"),
+                max_similarity=rag_stats.get("max_similarity"),
+                min_similarity=rag_stats.get("min_similarity"),
+                threshold_used=rag_stats.get("threshold_used", 0.78),
+                embedding_latency_ms=rag_stats.get("embedding_latency_ms", 0),
+                search_latency_ms=rag_stats.get("search_latency_ms", 0),
+                total_latency_ms=rag_stats.get("total_latency_ms", 0),
+            )
+
+    if collector:
+        collector.end_node("search_knowledge")
 
     return {"context": context}
 
 
 async def generate_response_node(state: dict) -> dict:
     """Generate the AI response using RAG context and conversation history."""
+    collector = get_collector()
+    if collector:
+        collector.start_node("generate_response")
+
     spa_name = state.get("spa_name", "our med spa")
     context = state.get("context", "No information available.")
     messages = state.get("messages", [])
@@ -136,30 +168,37 @@ async def generate_response_node(state: dict) -> dict:
         context=context,
     )
 
-    # Build message list for LLM
     llm_messages = [SystemMessage(content=system_prompt)]
     for msg in messages:
         if msg["role"] == "user":
             llm_messages.append(HumanMessage(content=msg["content"]))
         elif msg["role"] == "assistant":
             from langchain_core.messages import AIMessage
-
             llm_messages.append(AIMessage(content=msg["content"]))
 
     llm = _get_llm()
-    response = await llm.ainvoke(llm_messages)
+    response = await instrumented_ainvoke(llm, llm_messages, "generate_response")
     response_text = response.content
+
+    if collector:
+        collector.end_node("generate_response")
 
     return {"response": response_text}
 
 
 async def check_escalation_node(state: dict) -> dict:
     """Check if the conversation requires escalation."""
+    collector = get_collector()
+    if collector:
+        collector.start_node("check_escalation")
+
+    escalation_start = time.perf_counter()
     messages = state.get("messages", [])
     if not messages:
+        if collector:
+            collector.end_node("check_escalation")
         return {"should_escalate": False, "escalation_reason": None}
 
-    # Get latest user message
     last_user_msg = ""
     for msg in reversed(messages):
         if msg.get("role") == "user":
@@ -167,20 +206,32 @@ async def check_escalation_node(state: dict) -> dict:
             break
 
     if not last_user_msg:
+        if collector:
+            collector.end_node("check_escalation")
         return {"should_escalate": False, "escalation_reason": None}
 
     # Layer 1: Keyword/pattern matching (fast, deterministic)
-    if _EMERGENCY_PATTERNS.search(last_user_msg):
-        return {"should_escalate": True, "escalation_reason": "emergency"}
+    pattern_checks = [
+        (_EMERGENCY_PATTERNS, "emergency", "emergency"),
+        (_COMPLAINT_PATTERNS, "complaint", "complaint"),
+        (_HUMAN_REQUEST_PATTERNS, "patient_request", "human_request"),
+        (_MEDICAL_ADVICE_PATTERNS, "medical_question", "medical_advice"),
+    ]
 
-    if _COMPLAINT_PATTERNS.search(last_user_msg):
-        return {"should_escalate": True, "escalation_reason": "complaint"}
-
-    if _HUMAN_REQUEST_PATTERNS.search(last_user_msg):
-        return {"should_escalate": True, "escalation_reason": "patient_request"}
-
-    if _MEDICAL_ADVICE_PATTERNS.search(last_user_msg):
-        return {"should_escalate": True, "escalation_reason": "medical_question"}
+    for pattern, reason, pattern_name in pattern_checks:
+        match = pattern.search(last_user_msg)
+        if match:
+            latency = int((time.perf_counter() - escalation_start) * 1000)
+            if collector:
+                collector.record_escalation_decision(
+                    detection_method="regex",
+                    should_escalate=True,
+                    pattern_matched=pattern_name,
+                    escalation_reason=reason,
+                    latency_ms=latency,
+                )
+                collector.end_node("check_escalation")
+            return {"should_escalate": True, "escalation_reason": reason}
 
     # Layer 2: LLM classification for subtle cases
     try:
@@ -195,36 +246,72 @@ async def check_escalation_node(state: dict) -> dict:
             f"Patient message: {last_user_msg}\n\n"
             "Respond with ONLY one word: SAFE, MEDICAL, or ESCALATE."
         )
-        result = await llm.ainvoke([HumanMessage(content=classification_prompt)])
+        result = await instrumented_ainvoke(
+            llm, [HumanMessage(content=classification_prompt)], "check_escalation"
+        )
         classification = result.content.strip().upper()
 
+        latency = int((time.perf_counter() - escalation_start) * 1000)
+
         if classification == "MEDICAL":
+            if collector:
+                collector.record_escalation_decision(
+                    detection_method="llm",
+                    should_escalate=True,
+                    llm_classification="MEDICAL",
+                    escalation_reason="medical_question",
+                    latency_ms=latency,
+                )
+                collector.end_node("check_escalation")
             return {"should_escalate": True, "escalation_reason": "medical_question"}
         elif classification == "ESCALATE":
+            if collector:
+                collector.record_escalation_decision(
+                    detection_method="llm",
+                    should_escalate=True,
+                    llm_classification="ESCALATE",
+                    escalation_reason="ai_unsure",
+                    latency_ms=latency,
+                )
+                collector.end_node("check_escalation")
             return {"should_escalate": True, "escalation_reason": "ai_unsure"}
+        else:
+            if collector:
+                collector.record_escalation_decision(
+                    detection_method="llm",
+                    should_escalate=False,
+                    llm_classification=classification,
+                    latency_ms=latency,
+                )
     except Exception:
         logger.exception("LLM escalation classification failed")
+
+    if collector:
+        collector.end_node("check_escalation")
 
     return {"should_escalate": False, "escalation_reason": None}
 
 
 async def escalate_node(state: dict) -> dict:
-    """Handle escalation — create record and return safe response."""
+    """Handle escalation -- create record and return safe response."""
     from app.database import async_session_factory
     from app.services.notification import InAppNotifier
+
+    collector = get_collector()
+    if collector:
+        collector.start_node("escalate")
 
     reason = state.get("escalation_reason", "ai_unsure")
     conversation_id = state.get("conversation_id")
     tenant_id = state.get("tenant_id", "")
 
-    # Get the safe response template
     safe_response = _ESCALATION_RESPONSES.get(reason, _ESCALATION_RESPONSES["ai_unsure"])
 
-    # Create escalation record if we have a conversation
     if conversation_id and tenant_id:
         try:
-            from app.models.escalation import Escalation, EscalationReason, EscalationStatus
             import uuid
+
+            from app.models.escalation import Escalation, EscalationReason, EscalationStatus
 
             reason_enum = EscalationReason(reason)
 
@@ -235,12 +322,14 @@ async def escalate_node(state: dict) -> dict:
                     conversation_id=uuid.UUID(conversation_id),
                     reason=reason_enum,
                     status=EscalationStatus.PENDING,
-                    notes=f"Auto-escalated during chat. Last user message triggered {reason} detection.",
+                    notes=(
+                        "Auto-escalated during chat."
+                        f" Last user message triggered {reason} detection."
+                    ),
                 )
                 db.add(escalation)
                 await db.commit()
 
-                # Send in-app notification
                 notifier = InAppNotifier()
                 await notifier.notify_escalation(
                     tenant_id=tenant_id,
@@ -250,7 +339,9 @@ async def escalate_node(state: dict) -> dict:
         except Exception:
             logger.exception("Failed to create escalation record")
 
-    # Override the generated response with the safe template
+    if collector:
+        collector.end_node("escalate")
+
     return {"response": safe_response, "should_escalate": True}
 
 
@@ -259,37 +350,47 @@ async def create_lead_node(state: dict) -> dict:
     from app.database import async_session_factory
     from app.services.lead_service import LeadService
 
+    collector = get_collector()
+    if collector:
+        collector.start_node("create_lead")
+
     tenant_id = state.get("tenant_id", "")
     conversation_id = state.get("conversation_id")
     lead_id = state.get("lead_id")
     messages = state.get("messages", [])
 
     if not tenant_id or not messages:
+        if collector:
+            collector.end_node("create_lead")
         return {}
 
-    # Only create lead on substantive interactions (not just "hi")
     user_messages = [m for m in messages if m.get("role") == "user"]
     if not user_messages:
+        if collector:
+            collector.end_node("create_lead")
         return {}
 
     last_msg = user_messages[-1].get("content", "")
     if len(last_msg.strip()) < 10:
+        if collector:
+            collector.end_node("create_lead")
         return {}
 
-    # Use LLM to classify intent and generate summary
     try:
         llm = _get_llm()
         classify_prompt = (
             "Analyze this patient message from a med spa chat and respond in exactly this format:\n"
-            "INTENT: <one of: appointment, pricing, treatment_info, complaint, general, emergency>\n"
+            "INTENT: <one of: appointment, pricing, treatment_info,"
+            " complaint, general, emergency>\n"
             "URGENCY: <1-5 where 1=low, 5=critical>\n"
             "SUMMARY: <one sentence summary of what the patient wants>\n\n"
             f"Patient message: {last_msg}"
         )
-        result = await llm.ainvoke([HumanMessage(content=classify_prompt)])
+        result = await instrumented_ainvoke(
+            llm, [HumanMessage(content=classify_prompt)], "create_lead"
+        )
         text = result.content
 
-        # Parse response
         intent = "general"
         urgency = 2
         summary = last_msg[:100]
@@ -298,17 +399,20 @@ async def create_lead_node(state: dict) -> dict:
             line = line.strip()
             if line.upper().startswith("INTENT:"):
                 intent_val = line.split(":", 1)[1].strip().lower()
-                if intent_val in ("appointment", "pricing", "treatment_info", "complaint", "general", "emergency"):
+                valid = ("appointment", "pricing", "treatment_info",
+                         "complaint", "general", "emergency")
+                if intent_val in valid:
                     intent = intent_val
             elif line.upper().startswith("URGENCY:"):
-                try:
-                    urgency = min(5, max(1, int(line.split(":", 1)[1].strip()[0])))
-                except (ValueError, IndexError):
-                    pass
+                import contextlib
+
+                with contextlib.suppress(ValueError, IndexError):
+                    urgency = min(
+                        5, max(1, int(line.split(":", 1)[1].strip()[0]))
+                    )
             elif line.upper().startswith("SUMMARY:"):
                 summary = line.split(":", 1)[1].strip()
 
-        # Create or update lead
         async with async_session_factory() as db:
             lead_service = LeadService(db)
             if lead_id:
@@ -330,8 +434,13 @@ async def create_lead_node(state: dict) -> dict:
                 )
             await db.commit()
             if lead:
+                if collector:
+                    collector.end_node("create_lead")
                 return {"lead_id": str(lead.id), "intent": intent}
     except Exception:
         logger.exception("Failed to create/update lead")
+
+    if collector:
+        collector.end_node("create_lead")
 
     return {}

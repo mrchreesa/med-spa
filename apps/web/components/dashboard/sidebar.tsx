@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useTheme } from "@/lib/theme-context";
 import {
+  Activity,
   BarChart3,
   Users,
   MessageSquare,
@@ -169,8 +170,27 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Settings link + Footer */}
-      <div className="px-3 pb-2">
+      {/* Dev Dashboard + Settings + Footer */}
+      <div className="px-3 pb-2 space-y-0.5">
+        <Link
+          href="/dev/overview"
+          className={cn(
+            "sidebar-nav-item flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+            pathname.startsWith("/dev") && "sidebar-nav-active border-l-2 -ml-[2px]"
+          )}
+          style={{
+            color: pathname.startsWith("/dev") ? "var(--sidebar-active)" : "var(--sidebar-text)",
+            backgroundColor: pathname.startsWith("/dev") ? "var(--sidebar-active-bg)" : undefined,
+            borderColor: pathname.startsWith("/dev") ? "var(--sidebar-active)" : undefined,
+            opacity: pathname.startsWith("/dev") ? 1 : 0.9,
+          }}
+        >
+          <Activity
+            className="h-4 w-4 shrink-0"
+            style={{ color: pathname.startsWith("/dev") ? "var(--sidebar-active)" : undefined }}
+          />
+          <span>Dev Dashboard</span>
+        </Link>
         <Link
           href="/settings"
           className={cn(

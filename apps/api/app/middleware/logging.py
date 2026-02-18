@@ -33,5 +33,28 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             },
         )
 
+        # Record SystemEvent for 5xx responses
+        if response.status_code >= 500:
+            try:
+                from app.database import async_session_factory
+                from app.models.metrics import SystemEvent
+
+                async with async_session_factory() as db:
+                    event = SystemEvent(
+                        event_type="error",
+                        severity="error",
+                        source=f"http.{request.method}.{request.url.path}",
+                        message=(
+                            f"HTTP {response.status_code} on"
+                            f" {request.method} {request.url.path}"
+                        ),
+                        tenant_id=getattr(request.state, "tenant_id", None) or None,
+                        request_id=request_id,
+                    )
+                    db.add(event)
+                    await db.commit()
+            except Exception:
+                logger.debug("Failed to record system event for 5xx", exc_info=True)
+
         response.headers["X-Request-ID"] = request_id
         return response

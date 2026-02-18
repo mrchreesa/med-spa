@@ -14,6 +14,9 @@ from app.database import async_session_factory
 from app.models.conversation import Channel, Conversation
 from app.models.tenant import Tenant
 from app.schemas.chat import ChatRequest
+from app.services.langfuse_client import get_langfuse
+from app.services.metrics_collector import MetricsCollector, _metrics_ctx
+from app.utils.pii import mask_pii
 
 chat_limiter = Limiter(key_func=get_remote_address)
 
@@ -115,6 +118,24 @@ async def create_chat(request: Request, body: ChatRequest) -> StreamingResponse:
     async def generate():
         from app.agent.graph import build_concierge_graph
 
+        # Set up metrics collector
+        collector = MetricsCollector(tenant_id, conversation_id)
+        token = _metrics_ctx.set(collector)
+        collector.start_run()
+
+        # Set up Langfuse trace if enabled
+        langfuse = get_langfuse()
+        if langfuse:
+            try:
+                trace = langfuse.trace(
+                    name=f"chat-{conversation_id}",
+                    user_id=tenant_id,
+                    input=mask_pii(body.message),
+                )
+                collector.set_langfuse_trace_id(trace.id)
+            except Exception:
+                logger.debug("Failed to create Langfuse trace", exc_info=True)
+
         graph = build_concierge_graph()
 
         initial_state = {
@@ -131,25 +152,55 @@ async def create_chat(request: Request, body: ChatRequest) -> StreamingResponse:
         }
 
         try:
-            # Run the graph (non-streaming for now — stream the final response)
+            # Run the graph (non-streaming for now)
             result = await graph.ainvoke(initial_state)
 
             response_text = result.get("response", "")
             lead_id = result.get("lead_id")
             was_escalated = result.get("should_escalate", False)
+            intent = result.get("intent")
 
-            # Stream the response token by token (simulate streaming from the result)
-            # In production, we'd use astream_events for true token streaming
+            # Stream the response token by token
             words = response_text.split(" ")
             for i, word in enumerate(words):
-                token = word if i == 0 else " " + word
-                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                token_str = word if i == 0 else " " + word
+                yield f"data: {json.dumps({'type': 'token', 'content': token_str})}\n\n"
 
             # Add assistant response to transcript
             transcript.append({"role": "assistant", "content": response_text})
 
             # Save updated transcript
             await _save_transcript(conversation_id, transcript, lead_id)
+
+            # Flush metrics (non-blocking)
+            try:
+                async with async_session_factory() as metrics_db:
+                    await collector.flush(
+                        metrics_db,
+                        final_node="escalate" if was_escalated else "create_lead",
+                        was_escalated=was_escalated,
+                        intent_detected=intent,
+                        lead_created=lead_id is not None,
+                    )
+            except Exception:
+                logger.exception("Failed to flush metrics")
+
+            # Update Langfuse trace with output
+            if langfuse and collector._langfuse_trace_id:
+                try:
+                    langfuse.trace(
+                        id=collector._langfuse_trace_id,
+                        output=mask_pii(response_text),
+                        metadata={
+                            "was_escalated": was_escalated,
+                            "intent": intent,
+                            "lead_created": lead_id is not None,
+                            "total_tokens": collector._total_tokens,
+                        },
+                    )
+                    langfuse.flush()
+                except Exception:
+                    logger.debug("Failed to finalize Langfuse trace", exc_info=True)
 
             # Send done event with metadata
             done_data = {
@@ -168,6 +219,8 @@ async def create_chat(request: Request, body: ChatRequest) -> StreamingResponse:
             )
             yield f"data: {json.dumps({'type': 'token', 'content': error_msg})}\n\n"
             yield f"data: {json.dumps({'type': 'error', 'conversation_id': conversation_id})}\n\n"
+        finally:
+            _metrics_ctx.reset(token)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

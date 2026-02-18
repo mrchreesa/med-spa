@@ -33,3 +33,17 @@ async def get_tenant_id(request: Request) -> str:
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 TenantId = Annotated[str, Depends(get_tenant_id)]
+
+
+async def require_dev_role(request: Request) -> None:
+    """Require developer or admin role for dev dashboard endpoints."""
+    from app.config import settings
+
+    if not settings.clerk_jwks_url:  # dev bypass when Clerk is not configured
+        return
+    user_role = getattr(request.state, "user_role", "")
+    if user_role not in ("developer", "admin", "org:admin", "org:developer"):
+        raise HTTPException(status_code=403, detail="Developer or admin role required")
+
+
+DevRole = Annotated[None, Depends(require_dev_role)]

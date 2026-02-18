@@ -41,6 +41,24 @@ export const chartPalette = [
   "#A39E9A",
 ];
 
+export const devChartColors = {
+  latency: "#7B95A8",
+  tokens: "#C9A96E",
+  cost: "#7BA68B",
+  errors: "#C45B4A",
+  runs: "#8B7355",
+  similarity: "#D4A853",
+  regex: "#7B95A8",
+  llm: "#C9A96E",
+};
+
+export const severityColors: Record<string, string> = {
+  info: "#7B95A8",
+  warning: "#D4A853",
+  error: "#C45B4A",
+  critical: "#8B2252",
+};
+
 export const tooltipStyle = {
   contentStyle: {
     backgroundColor: "var(--surface)",

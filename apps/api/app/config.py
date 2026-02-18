@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = ""
 
     # Langfuse
+    langfuse_enabled: bool = False
     langfuse_host: str = "http://localhost:3001"
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""

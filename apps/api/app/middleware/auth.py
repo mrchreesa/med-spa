@@ -49,6 +49,32 @@ def _error(status_code: int, detail: str) -> JSONResponse:
     return JSONResponse(status_code=status_code, content={"detail": detail})
 
 
+async def _record_auth_failure(request: Request, detail: str) -> None:
+    """Record auth failure as a SystemEvent (best-effort)."""
+    try:
+        from app.database import async_session_factory
+        from app.models.metrics import SystemEvent
+
+        async with async_session_factory() as db:
+            event = SystemEvent(
+                event_type="auth_failure",
+                severity="warning",
+                source="middleware.auth",
+                message=detail,
+                tenant_id=getattr(request.state, "tenant_id", None) or None,
+                request_id=getattr(request.state, "request_id", None),
+                extra_data={
+                    "method": request.method,
+                    "path": str(request.url.path),
+                    "ip": request.client.host if request.client else None,
+                },
+            )
+            db.add(event)
+            await db.commit()
+    except Exception:
+        logger.debug("Failed to record auth failure event", exc_info=True)
+
+
 class ClerkAuthMiddleware(BaseHTTPMiddleware):
     """Verify Clerk JWT tokens and extract user/org info."""
 
@@ -67,10 +93,12 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
         if request.url.path in self.SKIP_PATHS or request.url.path.startswith(self.SKIP_PREFIXES):
             request.state.user_id = ""
             request.state.org_id = ""
+            request.state.user_role = ""
             return await call_next(request)
 
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
+            await _record_auth_failure(request, "Missing authorization header")
             return _error(401, "Missing authorization header")
 
         token = auth_header.split(" ", 1)[1]
@@ -78,12 +106,13 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
         # In development without Clerk keys, accept any token but log a warning
         if not settings.clerk_jwks_url:
             logger.warning(
-                "Clerk JWKS URL not configured — skipping JWT verification for %s %s",
+                "Clerk JWKS URL not configured -- skipping JWT verification for %s %s",
                 request.method,
                 request.url.path,
             )
             request.state.user_id = ""
             request.state.org_id = ""
+            request.state.user_role = ""
             request.state.token = token
             return await call_next(request)
 
@@ -92,11 +121,17 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
             request.state.user_id = claims.get("sub", "")
             request.state.org_id = claims.get("org_id", "")
             request.state.token = token
+
+            # Extract user role from Clerk claims
+            org_role = claims.get("org_role", "")
+            request.state.user_role = org_role
         except Exception:
             logger.exception("Auth verification failed")
+            await _record_auth_failure(request, "Invalid token")
             return _error(401, "Invalid token")
 
         if not request.state.org_id:
+            await _record_auth_failure(request, "No organization selected")
             return _error(
                 403,
                 "No organization selected. Please select an organization in Clerk.",
@@ -123,7 +158,7 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
                 break
 
         if not signing_key:
-            # Key might have rotated — refetch once
+            # Key might have rotated -- refetch once
             _jwks_cache.invalidate()
             keys = await _jwks_cache.get_keys(settings.clerk_jwks_url)
             for key_data in keys:
