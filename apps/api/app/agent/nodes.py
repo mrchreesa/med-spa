@@ -77,14 +77,7 @@ _ESCALATION_RESPONSES = {
 
 
 def _get_llm():
-    """Get the LLM instance based on environment."""
-    if settings.app_env == "production":
-        from langchain_aws import ChatBedrockConverse
-
-        return ChatBedrockConverse(
-            model=settings.bedrock_model_id_fast,
-            region_name=settings.aws_region,
-        )
+    """Get the fast LLM instance (gpt-4o-mini)."""
     return ChatOpenAI(
         model="gpt-4o-mini",
         api_key=settings.openai_api_key,
@@ -93,14 +86,7 @@ def _get_llm():
 
 
 def _get_smart_llm():
-    """Get the smarter LLM for classification tasks."""
-    if settings.app_env == "production":
-        from langchain_aws import ChatBedrockConverse
-
-        return ChatBedrockConverse(
-            model=settings.bedrock_model_id_smart,
-            region_name=settings.aws_region,
-        )
+    """Get the smarter LLM for classification tasks (gpt-4o)."""
     return ChatOpenAI(
         model="gpt-4o",
         api_key=settings.openai_api_key,

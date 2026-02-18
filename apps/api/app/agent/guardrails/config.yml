@@ -1,8 +1,8 @@
 # NeMo Guardrails configuration for Med Spa AI Concierge
 models:
   - type: main
-    engine: bedrock
-    model: anthropic.claude-3-5-haiku-20241022-v1:0
+    engine: openai
+    model: gpt-4o-mini
 
 rails:
   input:

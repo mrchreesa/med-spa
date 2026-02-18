@@ -17,18 +17,8 @@ class Settings(BaseSettings):
     clerk_publishable_key: str = ""
     clerk_jwks_url: str = ""
 
-    # OpenAI (dev embeddings only)
+    # OpenAI
     openai_api_key: str = ""
-
-    # Anthropic (dev LLM only)
-    anthropic_api_key: str = ""
-
-    # AWS Bedrock
-    aws_region: str = "us-east-1"
-    aws_access_key_id: str = ""
-    aws_secret_access_key: str = ""
-    bedrock_model_id_fast: str = "anthropic.claude-3-5-haiku-20241022-v1:0"
-    bedrock_model_id_smart: str = "anthropic.claude-sonnet-4-20250514-v1:0"
 
     # Twilio
     twilio_account_sid: str = ""

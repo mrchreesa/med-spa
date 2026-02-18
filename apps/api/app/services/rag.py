@@ -29,21 +29,13 @@ def chunk_text(text_content: str) -> list[str]:
 
 
 async def _get_embeddings(texts: list[str]) -> list[list[float]]:
-    """Get embeddings from the configured provider."""
-    if settings.app_env == "production":
-        from langchain_aws import BedrockEmbeddings
+    """Get embeddings via OpenAI text-embedding-3-small."""
+    from langchain_openai import OpenAIEmbeddings
 
-        embedder = BedrockEmbeddings(
-            model_id="amazon.titan-embed-text-v2:0",
-            region_name=settings.aws_region,
-        )
-    else:
-        from langchain_openai import OpenAIEmbeddings
-
-        embedder = OpenAIEmbeddings(
-            model="text-embedding-3-small",
-            api_key=settings.openai_api_key,
-        )
+    embedder = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        api_key=settings.openai_api_key,
+    )
     return await embedder.aembed_documents(texts)
 
 
